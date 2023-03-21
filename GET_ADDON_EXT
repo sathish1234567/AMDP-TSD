@@ -1,0 +1,486 @@
+  METHOD GET_ADDON_EXT  BY DATABASE PROCEDURE FOR HDB LANGUAGE SQLSCRIPT OPTIONS READ-ONLY USING CEPCT MARA MARC WB2_V_VBAK_VBAP2 T000 T460A /ibp/marc_ext.-- TVARVC .
+
+    DECLARE lc_logsys   CHAR( 10 );
+    DECLARE lc_adatu    CHAR( 10 );
+    DECLARE lc_pv        CONSTANT CHAR( 4 )        := '0001';
+    DECLARE lc_s9        CONSTANT CHAR( 9 )        := '        ';
+    DECLARE lc_s1        CONSTANT CHAR( 1 )        := ' ';
+    DECLARE lc_s         CONSTANT CHAR( 1 )        := 'S';
+    DECLARE lc_pvt       CONSTANT CHAR(19)         :='Production Version ';
+    DECLARE lc_bdatu     CONSTANT CHAR( 8 )        :='99991231';
+    DECLARE lc_p         CONSTANT CHAR( 1 )        :='P';
+    DECLARE lc_frmval    CONSTANT CHAR( 14 )       :='Z_IBP_FROM_VAL';
+    DECLARE lc_resid_prt CONSTANT CHAR( 8 )      :='IBP_RES1';
+    DECLARE lc_day       CONSTANT CHAR( 3 )      :='DAY';
+    DECLARE lc_actid     CONSTANT CHAR( 3 )      :='DEF';
+    DECLARE lc_acttxt    CONSTANT CHAR( 7 )      :='DEFAULT';
+    DECLARE lc_001       CONSTANT CHAR( 3 )      :='001';
+    DECLARE lc_cq       CONSTANT DECIMAL( 13 )   := 1;
+    DECLARE lc_bstmi    CONSTANT DECIMAL( 13 )    :=1;
+    DECLARE lc_bstma    CONSTANT DECIMAL( 13 )    :=99999999;
+    DECLARE lc_cap      CONSTANT DECIMAL( 13 )    :=86400;
+    DECLARE lc_proc     CONSTANT DECIMAL( 13 )    :=0;
+    DECLARE lc_bmeng    CONSTANT DECIMAL( 13 )    :=1;
+    DECLARE lc_durfx    CONSTANT DECIMAL( 3 )     :=1;
+    DECLARE lc_seqnr    CONSTANT NUMERIC( 3 )     :=1;
+    DECLARE lc_7        CONSTANT CHAR( 1 )        :='7';
+    DECLARE lc_count    CONSTANT CHAR( 5 )     :='00001';
+    DECLARE lc_ea       CONSTANT char( 3 )        :='EA';
+    DECLARE lc_m        CONSTANT char( 1 )        :='M';
+
+
+    SELECT logsys INTO lc_logsys FROM T000    WHERE mandt = sessiON_cONtext('CLIENT') LIMIT 1;
+    --SELECT low    INTO lc_adatu  FROM TVARVC  WHERE name  = :lc_frmval AND type = :lc_p; PRAVI
+
+
+    im_kmats = SELECT DISTINCT sales_order,item,sales_kmat,material_variant,plant,ph_l0,ph_l1,ph_l2,child_item,order_quantity FROM :IM_KMATS_MV;
+
+
+
+    lt_prctr = SELECT  distinct vbeln,
+                       posnr_i,
+                       uepos_i,
+                       pstyv_i,
+                       matnr_i,
+                       prctr_i  FROM :im_kmats INNER JOIN WB2_V_VBAK_VBAP2 as itms on :im_kmats.sales_order = itms.vbeln AND :im_kmats.item = itms.posnr_i;
+
+
+    lt_prctr_text = SELECT DISTINCT    prctr_i AS prctr,
+                                       ktext FROM :lt_prctr INNER JOIN cepct ON :lt_prctr.prctr_i = cepct.prctr
+                                       WHERE cepct.spras = SESSION_CONTEXT('LOCALE_SAP');
+
+  --MARA,MAKT,MARC
+  --unique components
+
+    ex_mara_ext = SELECT distinct sessiON_cONtext('CLIENT') AS mandt,
+                          :lc_logsys                        AS logsys,
+                          LTRIM(mv.material_variant,'0')       AS matnr,
+                          null                      AS lvorm,
+                          null                      AS matkl,
+                          m.meins                   AS meins,
+                          null prdha,
+                          mv.material_variant       AS matnr_ext,
+                          'MV'                      AS mtart,
+                          --m.mtart,
+                          null        AS prdha1,
+                          null        AS prdha2,
+                          null        AS prdha3,
+                          null        AS prdha4,
+                          null        AS prdha5,
+                          null        AS prdha6,
+                          null        AS prdha7,
+                          null        AS prdha8,
+                          null        AS prdha9,
+                          pc.prctr_i  AS cust_attr1,
+                          null        AS cust_attr2,
+                          0.01        AS cust_attr3,
+                          null        AS cust_attr4,
+                          null        AS cust_attr5,
+                          'USD'       AS cust_attr6,
+                          null        AS cust_attr7,
+                          null        AS cust_attr8,
+                          null        AS cust_attr9,
+                          null        AS cust_attr10,
+                          null        AS dummy_ets_mara,
+                          null        AS brand_id,
+                          mv.ph_l0    AS zz_l0_market,
+                          mv.ph_l1    AS zz_l1_product_family,
+                          mv.ph_l2    AS zz_l2_product,
+                          TO_DATS(current_date) AS creation_date
+                  FROM  :im_kmats AS MV INNER JOIN        :lt_prctr        AS pc  on mv.sales_order = pc.vbeln AND mv.item = pc.posnr_i
+                                        INNER JOIN        mara             AS m   on mv.sales_kmat  = m.matnr;
+
+
+
+    ex_makt_ext = SELECT distinct sessiON_cONtext('CLIENT')  AS mandt,
+                          :lc_logsys                    AS logsys,
+                          LTRIM(mv.matnr,'0')           AS matnr,
+                          SESSION_CONTEXT('LOCALE_SAP') AS spras,
+                          p.ktext AS maktx,
+                          UPPER(p.ktext) AS maktg
+                  FROM    :ex_mara_ext as mv INNER JOIN :lt_prctr_text as p ON  mv.cust_attr1 = p.prctr;
+
+
+    lt_marc_ext_procrmnt = SELECT distinct mv1.sales_kmat,
+                                  mv2.plant,
+                                  mv1.material_variant,
+                                  mv1.order_quantity from :im_kmats AS MV1 inner join :im_kmats as MV2 on mv1.material_variant = mv2.child_item;
+
+    lt_marc_ext_pro_chk = select distinct sales_kmat,
+                                 me.locno AS plant,
+                                 material_variant,
+                                 order_quantity from :lt_marc_ext_procrmnt as ex_prc inner Join "/IBP/MARC_EXT" as me on ex_prc.sales_kmat = me.matnr and ex_prc.plant <> me.locno;
+
+     lt_marc_ext_1 = SELECT distinct sessiON_cONtext('CLIENT') AS mandt,
+                          :lc_logsys                AS logsys,
+                          mv.material_variant       AS matnr,
+                          mv.plant                  AS locno,
+                          :lc_p                     AS loctype,
+                          m.webaz,
+                          m.plifz,
+                          m.eisbe,
+                          m.lvorm,
+                          m.beskz,
+                          'ZS'                      AS req_strat,
+                          m.dzeit,
+                          m.fxhor,
+                          m.dispo,
+                          m.SHFLG,
+                          m.SHZET,
+                          m.SOBSL,
+                          'MV'                      AS CUST_ATTR1,
+                          null                      AS CUST_ATTR2,
+                          null                      AS CUST_ATTR3,
+                          null                      AS CUST_ATTR4,
+                          null                      AS CUST_ATTR5,
+                          null                      AS CUST_ATTR6,
+                          null                      AS CUST_ATTR7,
+                          null                      AS CUST_ATTR8,
+                          null                      AS CUST_ATTR9,
+                          null                      AS CUST_ATTR10,
+                          m.AUSSS,
+                          mext.FCST_CONS_PROFILE_ID,
+                          mext.PAL_PROCEDURE,
+                          mext.PROD_HOR,
+                          mext.DISTR_HOR,
+                          mext.DEL_HOR,
+                          mext.SOS_PROFILE_ID,
+                          mext.REC_CALENDAR,
+                          mext.SHIP_CALENDAR,
+                          mext.SUBNETWORK_ID,
+                          mext.FS_SSS,
+                          mext.FS_MSS,
+                          mext.FS_ESS,
+                          mext.PP_INT_MODE,
+                          mext.DPS_HOR,
+                          mext.SUBSTDEMAND_TYPE,
+                          mext.DUMMY_TS_MARC,
+                          m.MMSTA,
+                          m.DISMM,
+                          m.EKGRP,
+                          TO_DATS(current_date)    AS creation_date
+                     FROM  :im_kmats AS MV INNER JOIN MARC as m ON mv.sales_kmat = m.matnr AND mv.plant = m.werks
+                                           left outer JOIN "/IBP/MARC_EXT" as mext ON mv.sales_kmat = mext.matnr AND mv.plant = mext.locno;
+
+     lt_marc_ext_2 = SELECT distinct sessiON_cONtext('CLIENT') AS mandt,
+                          :lc_logsys                AS logsys,
+                          mv.material_variant       AS matnr,
+                          mv.plant                  AS locno,
+                          :lc_p                     AS loctype,
+                          m.webaz,
+                          m.plifz,
+                          m.eisbe,
+                          m.lvorm,
+                          m.beskz,
+                          'ZS'                      AS req_strat,
+                          m.dzeit,
+                          m.fxhor,
+                          m.dispo,
+                          m.SHFLG,
+                          m.SHZET,
+                          m.SOBSL,
+                          'MV'                      AS CUST_ATTR1,
+                          null                      AS CUST_ATTR2,
+                          null                      AS CUST_ATTR3,
+                          null                      AS CUST_ATTR4,
+                          null                      AS CUST_ATTR5,
+                          null                      AS CUST_ATTR6,
+                          null                      AS CUST_ATTR7,
+                          null                      AS CUST_ATTR8,
+                          null                      AS CUST_ATTR9,
+                          null                      AS CUST_ATTR10,
+                          m.AUSSS,
+                          mext.FCST_CONS_PROFILE_ID,
+                          mext.PAL_PROCEDURE,
+                          mext.PROD_HOR,
+                          mext.DISTR_HOR,
+                          mext.DEL_HOR,
+                          mext.SOS_PROFILE_ID,
+                          mext.REC_CALENDAR,
+                          mext.SHIP_CALENDAR,
+                          mext.SUBNETWORK_ID,
+                          mext.FS_SSS,
+                          mext.FS_MSS,
+                          mext.FS_ESS,
+                          mext.PP_INT_MODE,
+                          mext.DPS_HOR,
+                          mext.SUBSTDEMAND_TYPE,
+                          mext.DUMMY_TS_MARC,
+                          m.MMSTA,
+                          m.DISMM,
+                          m.EKGRP,
+                          TO_DATS(current_date)    AS creation_date
+                     FROM  :lt_marc_ext_pro_chk AS MV INNER JOIN MARC as m ON mv.sales_kmat = m.matnr AND mv.plant = m.werks
+                                                      left outer JOIN "/IBP/MARC_EXT" as mext ON mv.sales_kmat = mext.matnr AND mv.plant = mext.locno;
+
+
+         ex_marc_ext = select distinct * from
+                         ( select * from  :lt_marc_ext_1
+                           union
+                           select * from  :lt_marc_ext_2
+                         );
+
+
+
+  --SOSHEAD,SOSRES,SOSACT,SOSBOM
+  lt_soshead_ext = SELECT  distinct sessiON_cONtext('CLIENT') AS mandt,
+                                  :lc_logsys                AS logsys,
+                                   mv.matnr||:lc_s1||mv.locno||:lc_pv||:lc_s9||:lc_s     AS pp_sos_id,
+                                   :lc_pv                 AS verid,
+                                   :lc_pvt||:lc_pv        AS vers_text,
+                                   :lc_bstmi              As bstmi,
+                                   :lc_bstma              AS bstma,
+                                   :lc_adatu              AS adatu,
+                                   :lc_bdatu              AS bdatu,
+                                   :lc_proc               AS proc_prio,
+                                   mv.matnr,
+                                   mv.locno               AS locno,
+                                   mv.dzeit,
+                                   :lc_bmeng              AS bmeng,
+                                   NULL                   AS lsmin,
+                                   NULL                   AS lsmax,
+                                   NULL                   AS bstrf,
+                                   NULL                   AS ausss,
+                                   NULL                   AS bom_expl_rule,
+                                   NULL                   AS loctype,
+                                   NULL                   AS dummy_ets_soshead
+                          FROM   :ex_marc_ext AS MV
+                          WHERE mv.beskz IN ('X','E');
+
+
+          ex_soshead_ext = SELECT  distinct mandt,
+                                   logsys,
+                                   pp_sos_id,
+                                   verid,
+                                   vers_text,
+                                   bstmi,
+                                   bstma,
+                                   adatu,
+                                   bdatu,
+                                   proc_prio,
+                                   matnr,
+                                   locno,
+                                   bmeng,
+                                   lsmin,
+                                   lsmax,
+                                   bstrf,
+                                   ausss,
+                                   bom_expl_rule,
+                                   loctype,
+                                   NULL                   AS dummy_ets_soshead,
+                                   TO_DATS(current_date)  AS creation_date
+                          FROM  :lt_soshead_ext;
+
+
+
+           ex_sosres_ext = SELECT  distinct mandt,
+                                   logsys,
+                                   pp_sos_id,
+                                   :lc_resid_prt||locno||:lc_001 AS resid,
+                                   adatu AS valfr,
+                                   bdatu AS valto,
+                                  :lc_cap AS bcons_var,
+                                  :lc_day AS bunit_disp,
+                                  :lc_cq  AS capbasqty,
+                                  null    AS dummy_ts_sosres,
+                                  TO_DATS(current_date)     AS creation_date
+                           FROM  :lt_soshead_ext;
+
+
+           ex_sosact_ext = SELECT distinct mandt,
+                                  logsys,
+                                  pp_sos_id,
+                                  :lc_actid                 AS actid,
+                                  :lc_acttxt                AS act_text,
+                                  dzeit                     AS act_dur_fix,
+                                  :lc_seqnr                 AS seqnr,
+                                  null                      AS dummy_ets_sosact,
+                                  TO_DATS(current_date)     AS creation_date
+                          FROM  :lt_soshead_ext;
+
+
+
+           ex_sosbom_ext_1 = SELECT distinct sessiON_cONtext('CLIENT')                         AS mandt,
+                              :lc_logsys                                                       AS logsys,
+                              mv.matnr,
+                              mv.locno,
+                              NULL                                                             AS logcomp,
+                              :lc_adatu                                                        AS valfr,
+                              :lc_bdatu                                                        AS valto,
+                              :lc_actid                                                        AS actid,
+                              null                                                             AS posnr,
+                              null                                                             AS pds_comp_id,
+                              null                                                             AS dummy_ets_sosbom,
+                              TO_DATS(current_date)                                            AS creation_date
+                        FROM :ex_marc_ext as mv
+                        WHERE mv.beskz IN ('E','X');
+
+             ex_sosbom_ext = SELECT    mandt,
+                                       logsys,
+                                       mv.matnr||:lc_s1||mv.locno||:lc_pv||:lc_s9||:lc_s       AS pp_sos_id,
+                                       ROW_NUMBER ( ) OVER( PARTITION BY mv.matnr )            AS logcomp,
+                                       valfr,
+                                       valto,
+                                       LTRIM(sk.child_item,'0')                                AS matnr,
+                                       sk.order_quantity                                       AS menge,
+                                       :lc_actid                                               AS actid,
+                                       null                                                    AS posnr,
+                                       null                                                    AS pds_comp_id,
+                                       null                                                    AS dummy_ets_sosbom,
+                              TO_DATS(current_date)                                            AS creation_date
+                        FROM  :ex_sosbom_ext_1 as mv INNER JOIN :im_kmats AS sk on mv.matnr = sk.material_variant;
+                        --MARC on mv.sales_kmat = marc.matnr AND mv.plant = marc.werks
+
+             lt_tlane_ext_1 = SELECT DISTINCT mv.sales_kmat,
+                                              mv.material_variant,
+                                              mv2.plant
+                                 FROM  :im_kmats AS MV INNER JOIN :im_kmats as mv2 ON mv.material_variant = mv2.child_item;
+
+             lt_tlane_ext = SELECT DISTINCT sessiON_cONtext('CLIENT') AS mandt,
+                                  :lc_logsys                AS logsys,
+                                  mv.material_variant       AS matnr,
+                                  mv.plant                  AS LOCNO_TO,
+                                  :lc_p                     AS LOCTYPE_TO,
+                                  :lc_7                     AS ESOKZ,
+                                  :lc_p                     AS LOCTYPE_FROM,
+                                  NUll                      AS EKORG,
+                                  :lc_actid                 AS MOT_ID,
+                                  :lc_count                 AS COUNTER,
+                                  :lc_adatu                 AS LIFAB,
+                                  :lc_bdatu                 AS LIFBI,
+                                  NULL                      AS BSTMA,
+                                  m.plifz                   AS APLFZ,
+                                  :lc_ea                    AS MEINS,
+                                  m.sobsl,
+                                  NULL                      AS INFNR,
+                                  NULL                      AS LOEKZ,
+                                  NULL                      AS PROC_PRIO,
+                                  NULL                      AS BLOCKED,
+                                 :lc_m                      AS CREATION_MODE,
+
+                                  NULL                      AS CUST_ATTR1,
+                                  NULL                      AS CUST_ATTR2,
+                                  NULL                      AS CUST_ATTR3,
+                                  NULL                      AS CUST_ATTR4,
+                                  NULL                      AS CUST_ATTR5,
+                                  NULL                      AS CUST_ATTR6,
+                                  NULL                      AS CUST_ATTR7,
+                                  NULL                      AS CUST_ATTR8,
+                                  NULL                      AS CUST_ATTR9,
+                                  NULL                      AS CUST_ATTR10,
+                                  NULL                      AS LSMIN,
+                                  NULL                      AS LSMAX,
+                                  NULL                      AS BSTRF,
+                                  NULL                      AS LOT_SIZE_X,
+                                  NULL                      AS APLFZ_X,
+                                  NULL                      AS TRANS_CALENDAR,
+                                  NULL                      AS TRANS_CALENDAR_X,
+                                  NULL                      AS SRC_LOC_TZ_X,
+                                  NULL                      AS VERID,
+                                  NULL                      AS WEBAZ,
+                                  NULL                      AS REC_CALENDAR,
+                                  NULL                      AS SHIP_CALENDAR,
+                                  TO_DATS(current_date)     AS creation_date
+                                 FROM  :lt_tlane_ext_1 AS MV INNER JOIN MARC as m ON mv.sales_kmat = m.matnr AND mv.plant = m.werks
+                                 WHERE  ( m.sobsl <> '' AND m.sobsl IS NOT NULL ) AND m.beskz = 'F';
+
+
+*
+*
+*            lt_tlane_ext = SELECT DISTINCT sessiON_cONtext('CLIENT') AS mandt,
+*                                  :lc_logsys                AS logsys,
+*                                  mv.material_variant       AS matnr,
+*                                  mv.plant                  AS LOCNO_TO,
+*                                  :lc_p                     AS LOCTYPE_TO,
+*                                  :lc_7                     AS ESOKZ,
+*                                  :lc_p                     AS LOCTYPE_FROM,
+*                                  NUll                      AS EKORG,
+*                                  :lc_actid                 AS MOT_ID,
+*                                  :lc_count                 AS COUNTER,
+*                                  :lc_adatu                 AS LIFAB,
+*                                  :lc_bdatu                 AS LIFBI,
+*                                  NULL                      AS BSTMA,
+*                                  m.plifz                   AS APLFZ,
+*                                  :lc_ea                    AS MEINS,
+*                                  m.sobsl,
+*                                  NULL                      AS INFNR,
+*                                  NULL                      AS LOEKZ,
+*                                  NULL                      AS PROC_PRIO,
+*                                  NULL                      AS BLOCKED,
+*                                 :lc_m                      AS CREATION_MODE,
+*
+*                                  NULL                      AS CUST_ATTR1,
+*                                  NULL                      AS CUST_ATTR2,
+*                                  NULL                      AS CUST_ATTR3,
+*                                  NULL                      AS CUST_ATTR4,
+*                                  NULL                      AS CUST_ATTR5,
+*                                  NULL                      AS CUST_ATTR6,
+*                                  NULL                      AS CUST_ATTR7,
+*                                  NULL                      AS CUST_ATTR8,
+*                                  NULL                      AS CUST_ATTR9,
+*                                  NULL                      AS CUST_ATTR10,
+*                                  NULL                      AS LSMIN,
+*                                  NULL                      AS LSMAX,
+*                                  NULL                      AS BSTRF,
+*                                  NULL                      AS LOT_SIZE_X,
+*                                  NULL                      AS APLFZ_X,
+*                                  NULL                      AS TRANS_CALENDAR,
+*                                  NULL                      AS TRANS_CALENDAR_X,
+*                                  NULL                      AS SRC_LOC_TZ_X,
+*                                  NULL                      AS VERID,
+*                                  NULL                      AS WEBAZ,
+*                                  NULL                      AS REC_CALENDAR,
+*                                  NULL                      AS SHIP_CALENDAR,
+*                                  TO_DATS(current_date)     AS creation_date
+*                                 FROM  :im_kmats AS MV INNER JOIN MARC as m ON mv.sales_kmat = m.matnr AND mv.plant = m.werks
+*                                 WHERE  ( m.sobsl <> '' AND m.sobsl IS NOT NULL ) AND m.beskz = 'F';
+
+
+                    ex_tlane_ext = SELECT DISTINCT    tl.mandt,
+                                                      tl.logsys,
+                                                      tl.matnr,
+                                                      tl.LOCNO_TO,
+                                                      tl.LOCTYPE_TO,
+                                                      tl.ESOKZ,
+                                                      t.wrk02                   AS LOCNO_FROM,
+                                                      tl.LOCTYPE_FROM,
+                                                      tl.EKORG,
+                                                      tl.MOT_ID,
+                                                      tl.COUNTER,
+                                                      tl.LIFAB,
+                                                      tl.LIFBI,
+                                                      tl.BSTMA,
+                                                      tl.APLFZ,
+                                                      tl.MEINS,
+                                                      tl.INFNR,
+                                                      tl.LOEKZ,
+                                                      tl.PROC_PRIO,
+                                                      tl.BLOCKED,
+                                                      tl.CREATION_MODE,
+                                                      tl.CUST_ATTR1,
+                                                      tl.CUST_ATTR2,
+                                                      tl.CUST_ATTR3,
+                                                      tl.CUST_ATTR4,
+                                                      tl.CUST_ATTR5,
+                                                      tl.CUST_ATTR6,
+                                                      tl.CUST_ATTR7,
+                                                      tl.CUST_ATTR8,
+                                                      tl.CUST_ATTR9,
+                                                      tl.CUST_ATTR10,
+                                                      tl.LSMIN,
+                                                      tl.LSMAX,
+                                                      tl.BSTRF,
+                                                      tl.LOT_SIZE_X,
+                                                      tl.APLFZ_X,
+                                                      tl.TRANS_CALENDAR,
+                                                      tl.TRANS_CALENDAR_X,
+                                                      tl.SRC_LOC_TZ_X,
+                                                      tl.VERID,
+                                                      tl.WEBAZ,
+                                                      tl.REC_CALENDAR,
+                                                      tl.SHIP_CALENDAR,
+                                                      tl.creation_date
+                                         FROM  :lt_tlane_ext AS tl INNER JOIN t460a AS t ON tl.locno_to = t.werks AND tl.sobsl = t.sobsl;
+
+
+  ENDMETHOD.
