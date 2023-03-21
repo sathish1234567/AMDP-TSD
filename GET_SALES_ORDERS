@@ -1,0 +1,34 @@
+ value( IM_PARAMS )	TYPE STRING	
+value( IM_SRC )	TYPE CHAR1	
+value( EX_SALES_ORDERS )	TYPE TT_SALES_ORDERS	
+CX_AMDP_ERROR		
+
+ 
+ 
+ METHOD GET_SALES_ORDERS BY DATABASE PROCEDURE FOR HDB LANGUAGE SQLSCRIPT OPTIONS READ-ONLY USING ZIBP_PARAMETER_M VBAK WB2_V_VBAK_VBAP2.
+    --ZIBP_PARAMETER.
+lt_valid_types = SELECT * FROM ZIBP_PARAMETER_M;
+
+IF :im_src = 'H' THEN
+lt_vbak = apply_filter (VBAK,:im_params);
+ex_sales_orders = SELECT vbeln,vdatu,'S' as ord_typ FROM :lt_vbak INNER JOIN :lt_valid_types ON :lt_vbak.auart = :lt_valid_types.order_type WHERE :lt_valid_types.systems = 'X';
+END IF;
+
+IF :im_src = 'I' THEN
+lt_vbap = apply_filter (WB2_V_VBAK_VBAP2,:im_params);
+ex_sales_orders = SELECT DISTINCT vbeln,vdatu,'S' as ord_typ FROM :lt_vbap INNER JOIN :lt_valid_types ON :lt_vbap.auart = :lt_valid_types.order_type WHERE :lt_valid_types.systems = 'X';
+END IF;
+
+IF :im_src = 'S' THEN
+lt_vbak = apply_filter (VBAK,:im_params);
+ex_sales_orders = SELECT vbeln,vdatu,null as ord_typ FROM :lt_vbak INNER JOIN :lt_valid_types ON :lt_vbak.auart = :lt_valid_types.order_type;
+END IF;
+
+IF :im_src = 'C' THEN
+lt_vbap = apply_filter (WB2_V_VBAK_VBAP2,:im_params);
+ex_sales_orders = SELECT DISTINCT vbeln,vdatu,'C' as ord_typ FROM :lt_vbap INNER JOIN :lt_valid_types ON :lt_vbap .auart = :lt_valid_types.order_type
+--INNER JOIN ZIBP_PARAMETER  ON :lt_vbap .auart = ZIBP_PARAMETER.order_type
+WHERE :lt_valid_types.systems <> 'X';
+--AND ZIBP_PARAMETER.IBP_AT_DETERMINE = 'X';
+END IF;
+  ENDMETHOD.
